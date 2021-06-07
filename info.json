@@ -1,0 +1,12 @@
+{
+  "commit": {
+    "commit": "5e0038cff0087ae6c0e7ad8bd21b8ed547f35e53",
+    "author": "Carl <cboettig@gmail.com>",
+    "time": "2021-06-07 16:28:48",
+    "files": 5,
+    "merge": false,
+    "message": "load_taxa() should not collect() in internal use\nbut should collect() if called by end user\n"
+  },
+  "remote": "https://github.com/ropensci/rfishbase",
+  "pkg": "rfishbase"
+}
