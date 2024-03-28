@@ -1,0 +1,12 @@
+{
+  "commit": {
+    "commit": "3c44ce068f594ded3db1176bb5f660ac463e3eae",
+    "author": "Carl Boettiger <cobettig@gmail.com>",
+    "time": "2023-06-01 18:57:17",
+    "files": 3,
+    "merge": false,
+    "message": "slb 23.05\n"
+  },
+  "repo": "https://github.com/ropensci/rfishbase",
+  "pkg": "rfishbase"
+}
