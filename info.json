@@ -1,0 +1,13 @@
+{
+  "commit": {
+    "commit": "8cba2ae9c20c95f51c099032fd941dab968a0cae",
+    "author": "Carl Boettiger <cboettig@gmail.com>",
+    "time": "2026-09-05T02:20:26Z",
+    "files": 3,
+    "merge": true,
+    "message": "Merge pull request #327 from ropensci/fix-2026-release-tag\n\nCorrect the 2026 release tag: 26.06, not 26.07"
+  },
+  "repo": "https://github.com/ropensci/rfishbase",
+  "pkg": "rfishbase",
+  "time": "2026-09-05T05:59:11Z"
+}
