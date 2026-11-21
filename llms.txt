@@ -1,0 +1,418 @@
+# rfishbase
+
+Welcome to `rfishbase 5`! This is the fourth rewrite of the original
+`rfishbase` package described in [Boettiger et
+al. (2012)](https://doi.org/10.1111/j.1095-8649.2012.03464.x).
+
+Another streamlined re-design following new abilities for data hosting
+and access. This release uses [Source Cooperative](https://source.coop/)
+S3 storage for data and metadata hosting in parquet format, providing
+improved reliability and resolving firewall issues that some users
+experienced with previous hosting solutions.
+
+Data access is simplified through direct S3 API queries instead of the
+previous contentid-based resolution. This allows metadata to be defined
+alongside the data, platform independent of the R package.
+
+A simplified access protocol relies on `duckdbfs` for direct reads of
+tables. Several functions previously used only to manage connections are
+now deprecated or removed, along with a significant number of
+dependencies.
+
+Core use still centers around the same package API using the
+[`fb_tbl()`](https://docs.ropensci.org/rfishbase/reference/fb_tbl.md)
+function, with legacy helper functions for common tables like
+[`species()`](https://docs.ropensci.org/rfishbase/reference/species.md)
+are still accessible and can still optionally filter by species name
+where appropriate. As before, loading the full tables and sub-setting
+manually is still recommended.
+
+Historic helper functions like
+[`load_taxa()`](https://docs.ropensci.org/rfishbase/reference/load_taxa.md)
+(combining the taxonomic classification from Species, Genus, Family and
+Order tables),
+[`validate_names()`](https://docs.ropensci.org/rfishbase/reference/validate_names.md),
+and
+[`common_to_sci()`](https://docs.ropensci.org/rfishbase/reference/common_to_sci.md)
+and
+[`sci_to_common()`](https://docs.ropensci.org/rfishbase/reference/common_names.md)
+should be in working order, all using table-based outputs.
+
+- `rfishbase 1.0` relied on parsing of XML pages served directly from
+  Fishbase.org.  
+- `rfishbase 2.0` relied on calls to a ruby-based API, `fishbaseapi`,
+  that provided access to SQL snapshots of about 20 of the more popular
+  tables in FishBase or SeaLifeBase.
+- `rfishbase 3.0` side-stepped the API by making queries which directly
+  downloaded compressed csv tables from a static web host. This
+  substantially improved performance a reliability, particularly for
+  large queries. The release largely remained backwards compatible with
+  2.0, and added more tables.
+- `rfishbase 4.0` extends the static model and interface. Static tables
+  are distributed in parquet and accessed through a provenance-based
+  identifier. While old functions are retained, a new interface is
+  introduced to provide easy access to all fishbase tables.
+
+We welcome any feedback, issues or questions that users may encounter
+through our issues tracker on GitHub:
+<https://github.com/ropensci/rfishbase/issues>
+
+## A message from the FishBase team
+
+> Thank you for using FishBase and SeaLifeBase through the rfishbase
+> package, representing more than 35 and 20 years of efforts,
+> respectively. With databases of such a large scope, both in terms of
+> species and life traits covered, one cannot expect that it is complete
+> and free of errors. We would be grateful if you could spare some of
+> your time, to directly report to FishBase and SeaLifeBase team:
+>
+> - mistakes, typos, taxonomic issues, etc.;
+> - if you have completed the dataset on your own, by sending the pdfs
+>   or reference citations that would allow us to address some missing
+>   data;
+> - by sending articles that you have published using the data, pdfs or
+>   reference citations.
+>
+> Please send your comments and corrections to <fishbase@q-quatics.org>.
+> You may send PDF files directly to the same address.
+
+## Installation
+
+``` r
+
+remotes::install_github("ropensci/rfishbase")
+```
+
+``` r
+
+library("rfishbase")
+library("dplyr") # convenient but not required
+```
+
+## Getting started
+
+## Generic table interface
+
+All fishbase tables can be accessed by name using the
+[`fb_tbl()`](https://docs.ropensci.org/rfishbase/reference/fb_tbl.md)
+function:
+
+``` r
+
+fb_tbl("ecosystem")
+```
+
+``` R
+# A tibble: 160,334 × 18
+   autoctr E_CODE EcosystemRefno Speccode Stockcode Status CurrentPresence
+     <int>  <int>          <int>    <int>     <int> <chr>  <chr>          
+ 1       1      1          50628      549       565 native Present        
+ 2       2      1            189      552       568 native Present        
+ 3       3      1            189      554       570 native Present        
+ 4       4      1          79732      873       889 native Present        
+ 5       5      1           5217      948       964 native Present        
+ 6       7      1          39852      956       972 native Present        
+ 7       8      1          39852      957       973 native Present        
+ 8       9      1          39852      958       974 native Present        
+ 9      10      1            188     1526      1719 native Present        
+10      11      1            188     1626      1819 native Present        
+# ℹ 160,324 more rows
+# ℹ 11 more variables: Abundance <chr>, LifeStage <chr>, Remarks <chr>,
+#   Entered <int>, Dateentered <dttm>, Modified <int>, Datemodified <dttm>,
+#   Expert <int>, Datechecked <dttm>, WebURL <chr>, TS <dttm>
+```
+
+You can see all the tables using
+[`fb_tables()`](https://docs.ropensci.org/rfishbase/reference/fb_tables.md)
+to see a list of all the table names (specify `sealifebase` if desired).
+Careful, there are a lot of them! The fishbase databases have grown a
+lot in the decades, and were not intended to be used directly by most
+end-users, so you may have considerable work to determine what’s what.
+Keep in mind that many variables can be estimated in different ways
+(e.g. trophic level), and thus may report different values in different
+tables. Also note that species is name (or SpecCode) is not always the
+primary key for a table – many tables are specific to stocks or even
+individual samples, and some tables are reference lists that are not
+species focused at all, but meant to be joined to other tables
+(`faoareas`, etc). Compare tables against what you see on fishbase.org,
+or ask on our issues forum for advice!
+
+``` r
+
+fish <- c("Oreochromis niloticus", "Salmo trutta")
+
+fb_tbl("species") %>% 
+  mutate(sci_name = paste(Genus, Species)) %>%
+  filter(sci_name %in% fish) %>% 
+  select(sci_name, FBname, Length)
+```
+
+``` R
+# A tibble: 2 × 3
+  sci_name              FBname       Length
+  <chr>                 <chr>         <dbl>
+1 Oreochromis niloticus Nile tilapia     60
+2 Salmo trutta          Sea trout       140
+```
+
+In most tables, species are identified by `SpecCode` (as per best
+practices) rather than scientific names. Multiple tables can be joined
+on the `SpecCode` to more fully describe a species.
+
+To filter species by taxonomic names, use the taxa table from
+[`load_taxa()`](https://docs.ropensci.org/rfishbase/reference/load_taxa.md),
+which provides a joined table of taxonomy from subspecies up through
+Class, along with the corresponding FishBase taxon ids codes. Here is an
+example workflow joining two of the spawning tables and filtering to the
+grouper family, *Epinephelidae*:
+
+``` r
+
+library(rfishbase)
+library(dplyr)
+
+## Get the whole spawning and spawn agg table, joined together:
+spawn <- left_join(fb_tbl("spawning"),  
+                   fb_tbl("spawnagg"), 
+                   relationship = "many-to-many")
+
+# Filter taxa down to the desired species
+groupers <- load_taxa() |> filter(Family == "Epinephelidae")
+
+## A "filtering join" (inner join) 
+spawn |> inner_join(groupers)
+```
+
+``` R
+# A tibble: 227 × 95
+   autoctr StockCode SpecCode SpawningRefNo SourceRef C_Code E_CODE
+     <int>     <int>    <int>         <int>     <int> <chr>   <int>
+ 1      18        18       12          5222      3092 528A       NA
+ 2      19        18       12         26409      1784 388       145
+ 3      20        20       14         26409        NA 192        NA
+ 4    9147        20       14        118249    118249 826E        8
+ 5      22        21       15          5241      5241 630        NA
+ 6      23        21       15          5241      6484 388        NA
+ 7      24        21       15          5241      3095 060        NA
+ 8      24        21       15          5241      3095 060        NA
+ 9      24        21       15          5241      3095 060        NA
+10      24        21       15          5241      3095 060        NA
+# ℹ 217 more rows
+# ℹ 88 more variables: SpawningGround <chr>, Spawningarea <chr>, Jan <dbl>,
+#   Feb <dbl>, Mar <dbl>, Apr <dbl>, May <dbl>, Jun <dbl>, Jul <dbl>,
+#   Aug <dbl>, Sep <dbl>, Oct <dbl>, Nov <dbl>, Dec <dbl>, GSI <int>,
+#   PercentFemales <int>, TempLow <dbl>, TempHigh <dbl>, SexRatiomid <dbl>,
+#   SexRmodRef <int>, FecundityMin <int>, WeightMin <dbl>,
+#   LengthFecunMin <dbl>, LengthTypeFecMin <chr>, FecundityRef <int>, …
+```
+
+## Species Names
+
+Always keep in mind that taxonomy is a dynamic concept. Species can be
+split or lumped based on new evidence, and naming authorities can
+disagree over which name is an ‘accepted name’ or ‘synonym’ for any
+given species. When providing your own list of species names, consider
+first checking that those names are “valid” in the current taxonomy
+established by FishBase:
+
+``` r
+
+validate_names("Abramites ternetzi")
+```
+
+``` R
+[1] "Abramites hypselonotus"
+```
+
+`rfishbase` can also provide tables of
+[`synonyms()`](https://docs.ropensci.org/rfishbase/reference/synonyms.md),
+a table of
+[`common_names()`](https://docs.ropensci.org/rfishbase/reference/common_names.md)
+in multiple languages, and convert
+[`common_to_sci()`](https://docs.ropensci.org/rfishbase/reference/common_to_sci.md)
+or
+[`sci_to_common()`](https://docs.ropensci.org/rfishbase/reference/common_names.md)
+
+``` r
+
+common_to_sci(c("Bicolor cleaner wrasse", "humphead parrotfish"), Language="English")
+```
+
+``` R
+# A tibble: 5 × 4
+  Species                ComName                     Language SpecCode
+  <chr>                  <chr>                       <chr>       <int>
+1 Labroides bicolor      Bicolor cleaner wrasse      English      5650
+2 Chlorurus cyanescens   Blue humphead parrotfish    English      7909
+3 Bolbometopon muricatum Green humphead parrotfish   English      5537
+4 Bolbometopon muricatum Humphead parrotfish         English      5537
+5 Chlorurus oedema       Uniform humphead parrotfish English      8394
+```
+
+Note that the results are returned as a table, potentially indicating
+other common names for the same species, as well as potentially
+different species that match the provided common name! Please always be
+careful with names, and use unique SpecCodes to refer to unique species.
+
+## SeaLifeBase
+
+SeaLifeBase.org is maintained by the same organization and largely
+parallels the database structure of Fishbase. As such, almost all
+`rfishbase` functions can instead be instructed to address the
+
+``` r
+
+fb_tbl("species", "sealifebase")
+```
+
+``` R
+# A tibble: 102,464 × 111
+   SpecCode Genus   Species Author SpeciesRefNo FBname FamCode Subfamily GenCode
+      <int> <chr>   <chr>   <chr>         <int> <chr>    <int> <chr>       <int>
+ 1    57969 Abdopus horrid… (D'Or…        96968 Red S…    1890 Octopodi…   24384
+ 2    57836 Abdopus tenebr… (Smit…           19 <NA>      1890 Octopodi…   24384
+ 3    57142 Abdopus tongan… (Hoyl…           19 <NA>      1890 Octopodi…   24384
+ 4  2381155 Abdopus undula… Huffa…        84307 <NA>      1890 <NA>        24384
+ 5    14647 Abebai… troglo… Vande…           19 <NA>       572 <NA>         9260
+ 6   165283 Aberom… muranoi Baces…       104101 <NA>       616 <NA>        33537
+ 7   140720 Aberra… banyul… Macki…        85340 <NA>       174 <NA>         9262
+ 8    40346 Aberra… enigma… unspe…           19 <NA>       174 <NA>         9262
+ 9    20199 Aberra… aberra… (Barn…           19 <NA>       308 <NA>         9263
+10    93706 Aberro… verruc… Kasat…         3696 <NA>       922 <NA>        17969
+# ℹ 102,454 more rows
+# ℹ 102 more variables: TaxIssue <int>, Remark <chr>, PicPreferredName <chr>,
+#   PicPreferredNameM <chr>, PicPreferredNameF <chr>, PicPreferredNameJ <chr>,
+#   Source <chr>, AuthorRef <int>, SubGenCode <int>, Fresh <int>, Brack <int>,
+#   Saltwater <int>, Land <int>, BodyShapeI <chr>, DemersPelag <chr>,
+#   Amphibious <chr>, AmphibiousRef <int>, AnaCat <chr>, MigratRef <int>,
+#   DepthRangeShallow <int>, DepthRangeDeep <int>, DepthRangeRef <int>, …
+```
+
+## Versions and importing all tables
+
+By default, tables are downloaded the first time they are used.
+`rfishbase` defaults to download the latest available snapshot; be aware
+that the most recent snapshot may be months behind the latest data on
+fishbase.org. Check available releases:
+
+``` r
+
+available_releases()
+```
+
+``` R
+[1] "19.04" "21.06" "23.01" "23.05" "24.07"
+```
+
+------------------------------------------------------------------------
+
+Please note that this package is released with a [Contributor Code of
+Conduct](https://ropensci.org/code-of-conduct/). By contributing to this
+project, you agree to abide by its terms.
+
+# Package index
+
+## All functions
+
+- [`available_releases()`](https://docs.ropensci.org/rfishbase/reference/available_releases.md)
+  : List available releases
+- [`brains()`](https://docs.ropensci.org/rfishbase/reference/brains.md)
+  : brains
+- [`c_code()`](https://docs.ropensci.org/rfishbase/reference/c_code.md)
+  : c_code
+- [`common_names()`](https://docs.ropensci.org/rfishbase/reference/common_names.md)
+  : common names
+- [`common_to_sci()`](https://docs.ropensci.org/rfishbase/reference/common_to_sci.md)
+  : common_to_sci
+- [`country()`](https://docs.ropensci.org/rfishbase/reference/country.md)
+  : country
+- [`countrysub()`](https://docs.ropensci.org/rfishbase/reference/countrysub.md)
+  : countrysub
+- [`countrysubref()`](https://docs.ropensci.org/rfishbase/reference/countrysubref.md)
+  : countrysubref
+- [`diet()`](https://docs.ropensci.org/rfishbase/reference/diet.md) :
+  diet
+- [`diet_items()`](https://docs.ropensci.org/rfishbase/reference/diet_items.md)
+  : diet_items
+- [`ecology()`](https://docs.ropensci.org/rfishbase/reference/ecology.md)
+  : ecology
+- [`ecosystem()`](https://docs.ropensci.org/rfishbase/reference/ecosystem.md)
+  : ecosystem
+- [`estimate()`](https://docs.ropensci.org/rfishbase/reference/estimate.md)
+  : estimate
+- [`faoareas()`](https://docs.ropensci.org/rfishbase/reference/faoareas.md)
+  : faoareas
+- [`fb_tables()`](https://docs.ropensci.org/rfishbase/reference/fb_tables.md)
+  : List the tables available on fishbase/sealifebase
+- [`fb_tbl()`](https://docs.ropensci.org/rfishbase/reference/fb_tbl.md)
+  : Access a fishbase or sealifebase table
+- [`fecundity()`](https://docs.ropensci.org/rfishbase/reference/fecundity.md)
+  : fecundity
+- [`fishbase`](https://docs.ropensci.org/rfishbase/reference/fishbase.md)
+  : A table of all the the species found in FishBase, including
+  taxonomic classification and the Species Code (SpecCode) by which the
+  species is identified in FishBase.
+- [`fooditems()`](https://docs.ropensci.org/rfishbase/reference/fooditems.md)
+  : fooditems
+- [`genetics()`](https://docs.ropensci.org/rfishbase/reference/genetics.md)
+  : genetics
+- [`introductions()`](https://docs.ropensci.org/rfishbase/reference/introductions.md)
+  : introductions
+- [`larvae()`](https://docs.ropensci.org/rfishbase/reference/larvae.md)
+  : larvae
+- [`length_freq()`](https://docs.ropensci.org/rfishbase/reference/length_freq.md)
+  : length_freq
+- [`length_length()`](https://docs.ropensci.org/rfishbase/reference/length_length.md)
+  : length_length
+- [`length_weight()`](https://docs.ropensci.org/rfishbase/reference/length_weight.md)
+  : length_weight
+- [`load_taxa()`](https://docs.ropensci.org/rfishbase/reference/load_taxa.md)
+  : load_taxa
+- [`maturity()`](https://docs.ropensci.org/rfishbase/reference/maturity.md)
+  : maturity
+- [`morphology()`](https://docs.ropensci.org/rfishbase/reference/morphology.md)
+  : morphology
+- [`morphometrics()`](https://docs.ropensci.org/rfishbase/reference/morphometrics.md)
+  : morphometrics
+- [`oxygen()`](https://docs.ropensci.org/rfishbase/reference/oxygen.md)
+  : oxygen
+- [`popchar()`](https://docs.ropensci.org/rfishbase/reference/popchar.md)
+  : popchar
+- [`popgrowth()`](https://docs.ropensci.org/rfishbase/reference/popgrowth.md)
+  : popgrowth
+- [`popqb()`](https://docs.ropensci.org/rfishbase/reference/popqb.md) :
+  popqb
+- [`predators()`](https://docs.ropensci.org/rfishbase/reference/predators.md)
+  : predators
+- [`ration()`](https://docs.ropensci.org/rfishbase/reference/ration.md)
+  : ration
+- [`references()`](https://docs.ropensci.org/rfishbase/reference/references.md)
+  : references
+- [`reproduction()`](https://docs.ropensci.org/rfishbase/reference/reproduction.md)
+  : reproduction
+- [`rfishbase-package`](https://docs.ropensci.org/rfishbase/reference/rfishbase-package.md)
+  [`rfishbase`](https://docs.ropensci.org/rfishbase/reference/rfishbase-package.md)
+  : The new R interface to Fishbase, v5.0
+- [`sealifebase`](https://docs.ropensci.org/rfishbase/reference/sealifebase.md)
+  : A table of all the the species found in SeaLifeBase, including
+  taxonomic classification and the Species Code (SpecCode) by which the
+  species is identified in SeaLifeBase
+- [`spawning()`](https://docs.ropensci.org/rfishbase/reference/spawning.md)
+  : spawning
+- [`species()`](https://docs.ropensci.org/rfishbase/reference/species.md)
+  : species
+- [`species_by_ecosystem()`](https://docs.ropensci.org/rfishbase/reference/species_by_ecosystem.md)
+  : Species list by ecosystem
+- [`species_names()`](https://docs.ropensci.org/rfishbase/reference/species_names.md)
+  : species_names
+- [`speed()`](https://docs.ropensci.org/rfishbase/reference/speed.md) :
+  speed
+- [`stocks()`](https://docs.ropensci.org/rfishbase/reference/stocks.md)
+  : stocks
+- [`swimming()`](https://docs.ropensci.org/rfishbase/reference/swimming.md)
+  : swimming
+- [`synonyms()`](https://docs.ropensci.org/rfishbase/reference/synonyms.md)
+  : synonyms
+- [`validate_names()`](https://docs.ropensci.org/rfishbase/reference/validate_names.md)
+  : validate_names
+
